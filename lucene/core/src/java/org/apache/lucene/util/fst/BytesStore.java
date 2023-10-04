@@ -21,13 +21,12 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 
 // TODO: merge with PagedBytes, except PagedBytes doesn't
 // let you read while writing which FST needs
 
-class BytesStore extends FSTWriter implements Accountable {
+class BytesStore extends FSTWriter {
 
   private static final long BASE_RAM_BYTES_USED =
       RamUsageEstimator.shallowSizeOfInstance(BytesStore.class)
@@ -50,6 +49,7 @@ class BytesStore extends FSTWriter implements Accountable {
   }
 
   /** Absolute write byte; you must ensure dest is &lt; max position written so far. */
+  @Override
   public void writeByte(long dest, byte b) {
     int blockIndex = (int) (dest >> blockBits);
     byte[] block = blocks.get(blockIndex);
@@ -181,6 +181,7 @@ class BytesStore extends FSTWriter implements Accountable {
    * Absolute copy bytes self to self, without changing the position. Note: this cannot "grow" the
    * bytes, so must only call it on already written parts.
    */
+  @Override
   public void copyBytes(long src, long dest, int len) {
     // System.out.println("BS.copyBytes src=" + src + " dest=" + dest + " len=" + len);
     assert src < dest;
@@ -239,6 +240,7 @@ class BytesStore extends FSTWriter implements Accountable {
   }
 
   /** Copies bytes from this store to a target byte array. */
+  @Override
   public void copyBytes(long src, byte[] dest, int offset, int len) {
     int blockIndex = (int) (src >> blockBits);
     int upto = (int) (src & blockMask);
@@ -277,6 +279,7 @@ class BytesStore extends FSTWriter implements Accountable {
   }
 
   /** Reverse from srcPos, inclusive, to destPos, inclusive. */
+  @Override
   public void reverse(long srcPos, long destPos) {
     assert srcPos < destPos;
     assert destPos < getPosition();
@@ -315,6 +318,7 @@ class BytesStore extends FSTWriter implements Accountable {
     }
   }
 
+  @Override
   public void skipBytes(int len) {
     while (len > 0) {
       int chunk = blockSize - nextWrite;
@@ -330,6 +334,7 @@ class BytesStore extends FSTWriter implements Accountable {
     }
   }
 
+  @Override
   public long getPosition() {
     return ((long) blocks.size() - 1) * blockSize + nextWrite;
   }
@@ -338,6 +343,7 @@ class BytesStore extends FSTWriter implements Accountable {
    * Pos must be less than the max position written so far! Ie, you cannot "grow" the file with
    * this!
    */
+  @Override
   public void truncate(long newLen) {
     assert newLen <= getPosition();
     assert newLen >= 0;
@@ -367,6 +373,7 @@ class BytesStore extends FSTWriter implements Accountable {
   }
 
   /** Writes all of our bytes to the target {@link DataOutput}. */
+  @Override
   public void writeTo(DataOutput out) throws IOException {
     for (byte[] block : blocks) {
       out.writeBytes(block, 0, block.length);
