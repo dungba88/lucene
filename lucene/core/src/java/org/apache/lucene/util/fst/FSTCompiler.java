@@ -101,7 +101,17 @@ public class FSTCompiler<T> {
    * tuning and tweaking, see {@link Builder}.
    */
   public FSTCompiler(FST.INPUT_TYPE inputType, Outputs<T> outputs) {
-    this(inputType, 0, 0, true, true, Integer.MAX_VALUE, outputs, true, new BytesStore(DEFAULT_BLOCK_BITS), 1f);
+    this(
+        inputType,
+        0,
+        0,
+        true,
+        true,
+        Integer.MAX_VALUE,
+        outputs,
+        true,
+        new BytesStore(DEFAULT_BLOCK_BITS),
+        1f);
   }
 
   private FSTCompiler(
@@ -242,10 +252,11 @@ public class FSTCompiler<T> {
 
     /**
      * How many bits wide to make each byte[] block in the BytesStore; if you know the FST will be
-     * large then make this larger. For example 15 bits = 32768 byte pages.
-     * Note: Setting this will make the FST use BytesStore to write and override the settings in
-     * {@link #fstWriter}
+     * large then make this larger. For example 15 bits = 32768 byte pages. Note: Setting this will
+     * make the FST use BytesStore to write and override the settings in {@link #fstWriter}
+     *
      * <p>Default = 15.
+     *
      * @deprecated use {@link #fstWriter(FSTWriter)} instead
      */
     public Builder<T> bytesPageBits(int bytesPageBits) {
@@ -255,7 +266,8 @@ public class FSTCompiler<T> {
     /**
      * Set the {@link FSTWriter} which is used for low-level writing of FST.
      *
-     * Note: Setting this will override the settings in {@link #bytesPageBits(int)}
+     * <p>Note: Setting this will override the settings in {@link #bytesPageBits(int)}
+     *
      * @param fstWriter the FSTWriter
      * @return this builder
      */

@@ -862,7 +862,8 @@ public final class FST<T> implements Accountable {
       FSTCompiler<T> fstCompiler,
       FSTCompiler.UnCompiledNode<T> nodeIn,
       long startAddress,
-      int maxBytesPerArc) throws IOException {
+      int maxBytesPerArc)
+      throws IOException {
     // Build the header in a buffer.
     // It is a false/special arc which is in fact a node header with node flags followed by node
     // metadata.
@@ -913,7 +914,8 @@ public final class FST<T> implements Accountable {
       FSTCompiler.UnCompiledNode<T> nodeIn,
       long startAddress,
       int maxBytesPerArcWithoutLabel,
-      int labelRange) throws IOException {
+      int labelRange)
+      throws IOException {
     // Expand the arcs backwards in a buffer because we remove the labels.
     // So the obtained arcs might occupy less space. This is the reason why this
     // whole method is more complex.
@@ -989,7 +991,8 @@ public final class FST<T> implements Accountable {
       FSTCompiler<T> fstCompiler,
       FSTCompiler.UnCompiledNode<T> nodeIn,
       long dest,
-      int numPresenceBytes) throws IOException {
+      int numPresenceBytes)
+      throws IOException {
     long bytePos = dest;
     byte presenceBits = 1; // The first arc is always present.
     int presenceIndex = 0;

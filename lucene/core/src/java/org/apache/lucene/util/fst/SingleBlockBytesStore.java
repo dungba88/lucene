@@ -16,63 +16,65 @@
  */
 package org.apache.lucene.util.fst;
 
+import java.io.IOException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 
-import java.io.IOException;
-
 /**
- * Implementation of {@link FSTWriter} which use similar behavior as {@link BytesStore}, but upon calling
- * {@link #finish()}, if the size is not too large, it will merge all blocks into a single byte array.
+ * Implementation of {@link FSTWriter} which use similar behavior as {@link BytesStore}, but upon
+ * calling {@link #finish()}, if the size is not too large, it will merge all blocks into a single
+ * byte array.
  *
- * For reading with the {@link #getReverseReader()}, it will be more efficient than {@link BytesStore} as it has less overhead.
- * However, during the call to {@link #finish()} it will temporarily need ~2x more heap than {@link BytesStore}, thus it is
- * recommended for small (less than 1GB), write-once-read-many FST.
+ * <p>For reading with the {@link #getReverseReader()}, it will be more efficient than {@link
+ * BytesStore} as it has less overhead. However, during the call to {@link #finish()} it will
+ * temporarily need ~2x more heap than {@link BytesStore}, thus it is recommended for small (less
+ * than 1GB), write-once-read-many FST.
  */
 public class SingleBlockBytesStore extends BytesStore {
 
-    final int maxBits;
+  final int maxBits;
 
-    byte[] bytes;
+  byte[] bytes;
 
-    /**
-     * constructor
-     * @param blockBits the size of each byte block used during constructing the FST
-     * @param maxBits the maximum size of the byte array to hold the final FST. if the FST is larger than this threshold,
-     *                it will use the BytesStore's byte blocks instead
-     */
-    public SingleBlockBytesStore(int blockBits, int maxBits) {
-        super(blockBits);
-        if (maxBits < 1 || maxBits > 30) {
-            throw new IllegalArgumentException("maxBits should be 1 .. 30; got " + maxBits);
-        }
-
-        this.maxBits = maxBits;
+  /**
+   * constructor
+   *
+   * @param blockBits the size of each byte block used during constructing the FST
+   * @param maxBits the maximum size of the byte array to hold the final FST. if the FST is larger
+   *     than this threshold, it will use the BytesStore's byte blocks instead
+   */
+  public SingleBlockBytesStore(int blockBits, int maxBits) {
+    super(blockBits);
+    if (maxBits < 1 || maxBits > 30) {
+      throw new IllegalArgumentException("maxBits should be 1 .. 30; got " + maxBits);
     }
 
-    @Override
-    public void finish() throws IOException {
-        super.finish();
+    this.maxBits = maxBits;
+  }
 
-        long pos = super.getPosition();
+  @Override
+  public void finish() throws IOException {
+    super.finish();
 
-        if (pos > 1 << this.maxBits) {
-            // the buffer is too large, keep with the BytesStore implementation
-            return;
-        }
+    long pos = super.getPosition();
 
-        // merge all blocks into a single byte array
-        bytes = new byte[(int) pos];
-        writeTo(new ByteArrayDataOutput(bytes));
-
-        blocks.clear();
-        blocks.add(bytes);
+    if (pos > 1 << this.maxBits) {
+      // the buffer is too large, keep with the BytesStore implementation
+      return;
     }
 
-    @Override
-    public long getPosition() {
-        if (bytes == null) { // before calling finish()
-            return super.getPosition();
-        }
-        return bytes.length;
+    // merge all blocks into a single byte array
+    bytes = new byte[(int) pos];
+    writeTo(new ByteArrayDataOutput(bytes));
+
+    blocks.clear();
+    blocks.add(bytes);
+  }
+
+  @Override
+  public long getPosition() {
+    if (bytes == null) { // before calling finish()
+      return super.getPosition();
     }
+    return bytes.length;
+  }
 }
