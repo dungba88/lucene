@@ -44,6 +44,8 @@ import org.apache.lucene.util.fst.FST.INPUT_TYPE; // javadoc
  */
 public class FSTCompiler<T> {
 
+  static final int DEFAULT_BLOCK_BITS = 15;
+
   static final float DIRECT_ADDRESSING_MAX_OVERSIZING_FACTOR = 1f;
 
   private final NodeHash<T> dedupHash;
@@ -92,14 +94,14 @@ public class FSTCompiler<T> {
   final float directAddressingMaxOversizingFactor;
   long directAddressingExpansionCredit;
 
-  final BytesStore bytes;
+  final FSTWriter bytes;
 
   /**
    * Instantiates an FST/FSA builder with default settings and pruning options turned off. For more
    * tuning and tweaking, see {@link Builder}.
    */
   public FSTCompiler(FST.INPUT_TYPE inputType, Outputs<T> outputs) {
-    this(inputType, 0, 0, true, true, Integer.MAX_VALUE, outputs, true, 15, 1f);
+    this(inputType, 0, 0, true, true, Integer.MAX_VALUE, outputs, true, new BytesStore(DEFAULT_BLOCK_BITS), 1f);
   }
 
   private FSTCompiler(
@@ -111,7 +113,7 @@ public class FSTCompiler<T> {
       int shareMaxTailLength,
       Outputs<T> outputs,
       boolean allowFixedLengthArcs,
-      int bytesPageBits,
+      FSTWriter fstWriter,
       float directAddressingMaxOversizingFactor) {
     this.minSuffixCount1 = minSuffixCount1;
     this.minSuffixCount2 = minSuffixCount2;
@@ -119,11 +121,11 @@ public class FSTCompiler<T> {
     this.shareMaxTailLength = shareMaxTailLength;
     this.allowFixedLengthArcs = allowFixedLengthArcs;
     this.directAddressingMaxOversizingFactor = directAddressingMaxOversizingFactor;
-    fst = new FST<>(inputType, outputs, bytesPageBits);
-    bytes = fst.bytes;
+    fst = new FST<>(inputType, outputs, fstWriter);
+    bytes = fstWriter;
     assert bytes != null;
     if (doShareSuffix) {
-      dedupHash = new NodeHash<>(fst, bytes.getReverseReader(false));
+      dedupHash = new NodeHash<>(fst, bytes.getReverseReaderForSuffixSharing());
     } else {
       dedupHash = null;
     }
@@ -153,7 +155,7 @@ public class FSTCompiler<T> {
     private boolean shouldShareNonSingletonNodes = true;
     private int shareMaxTailLength = Integer.MAX_VALUE;
     private boolean allowFixedLengthArcs = true;
-    private int bytesPageBits = 15;
+    private FSTWriter fstWriter = new BytesStore(DEFAULT_BLOCK_BITS);
     private float directAddressingMaxOversizingFactor = DIRECT_ADDRESSING_MAX_OVERSIZING_FACTOR;
 
     /**
@@ -241,11 +243,24 @@ public class FSTCompiler<T> {
     /**
      * How many bits wide to make each byte[] block in the BytesStore; if you know the FST will be
      * large then make this larger. For example 15 bits = 32768 byte pages.
-     *
+     * Note: Setting this will make the FST use BytesStore to write and override the settings in
+     * {@link #fstWriter}
      * <p>Default = 15.
+     * @deprecated use {@link #fstWriter(FSTWriter)} instead
      */
     public Builder<T> bytesPageBits(int bytesPageBits) {
-      this.bytesPageBits = bytesPageBits;
+      return fstWriter(new BytesStore(bytesPageBits));
+    }
+
+    /**
+     * Set the {@link FSTWriter} which is used for low-level writing of FST.
+     *
+     * Note: Setting this will override the settings in {@link #bytesPageBits(int)}
+     * @param fstWriter the FSTWriter
+     * @return this builder
+     */
+    public Builder<T> fstWriter(FSTWriter fstWriter) {
+      this.fstWriter = fstWriter;
       return this;
     }
 
@@ -279,7 +294,7 @@ public class FSTCompiler<T> {
               shareMaxTailLength,
               outputs,
               allowFixedLengthArcs,
-              bytesPageBits,
+              fstWriter,
               directAddressingMaxOversizingFactor);
       return fstCompiler;
     }
@@ -469,6 +484,8 @@ public class FSTCompiler<T> {
     }
     */
 
+    bytes.beforeAdded(input);
+
     // De-dup NO_OUTPUT since it must be a singleton:
     if (output.equals(NO_OUTPUT)) {
       output = NO_OUTPUT;
@@ -488,6 +505,7 @@ public class FSTCompiler<T> {
       frontier[0].inputCount++;
       frontier[0].isFinal = true;
       fst.setEmptyOutput(output);
+      bytes.afterAdded(input);
       return;
     }
 
@@ -571,6 +589,8 @@ public class FSTCompiler<T> {
 
     // save last input
     lastInput.copyInts(input);
+
+    bytes.afterAdded(input);
 
     // System.out.println("  count[0]=" + frontier[0].inputCount);
   }

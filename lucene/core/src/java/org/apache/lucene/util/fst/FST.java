@@ -145,7 +145,7 @@ public final class FST<T> implements Accountable {
    * A {@link BytesStore}, used during building, or during reading when the FST is very large (more
    * than 1 GB). If the FST is less than 1 GB then bytesArray is set instead.
    */
-  final BytesStore bytes;
+  final FSTWriter fstWriter;
 
   private final FSTStore fstStore;
 
@@ -420,14 +420,18 @@ public final class FST<T> implements Accountable {
   }
 
   // make a new empty FST, for building; Builder invokes this
-  FST(INPUT_TYPE inputType, Outputs<T> outputs, int bytesPageBits) {
+  FST(INPUT_TYPE inputType, Outputs<T> outputs, FSTWriter fstWriter) {
     this.inputType = inputType;
     this.outputs = outputs;
     fstStore = null;
-    bytes = new BytesStore(bytesPageBits);
+    this.fstWriter = fstWriter;
     // pad: ensure no node gets address 0 which is reserved to mean
     // the stop state w/ no arcs
-    bytes.writeByte((byte) 0);
+    try {
+      this.fstWriter.writeByte((byte) 0);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
     emptyOutput = null;
     this.version = VERSION_CURRENT;
   }
@@ -445,7 +449,7 @@ public final class FST<T> implements Accountable {
    */
   public FST(DataInput metaIn, DataInput in, Outputs<T> outputs, FSTStore fstStore)
       throws IOException {
-    bytes = null;
+    fstWriter = null;
     this.fstStore = fstStore;
     this.outputs = outputs;
 
@@ -497,7 +501,7 @@ public final class FST<T> implements Accountable {
     if (this.fstStore != null) {
       size += this.fstStore.ramBytesUsed();
     } else {
-      size += bytes.ramBytesUsed();
+      size += fstWriter.ramBytesUsed();
     }
 
     return size;
@@ -509,7 +513,7 @@ public final class FST<T> implements Accountable {
   }
 
   void finish(long newStartNode) throws IOException {
-    assert newStartNode <= bytes.getPosition();
+    assert newStartNode <= fstWriter.getPosition();
     if (startNode != -1) {
       throw new IllegalStateException("already finished");
     }
@@ -517,7 +521,7 @@ public final class FST<T> implements Accountable {
       newStartNode = 0;
     }
     startNode = newStartNode;
-    bytes.finish();
+    fstWriter.finish();
   }
 
   public long numBytes() {
@@ -577,10 +581,10 @@ public final class FST<T> implements Accountable {
     }
     metaOut.writeByte(t);
     metaOut.writeVLong(startNode);
-    if (bytes != null) {
-      long numBytes = bytes.getPosition();
+    if (fstWriter != null) {
+      long numBytes = fstWriter.getPosition();
       metaOut.writeVLong(numBytes);
-      bytes.writeTo(out);
+      fstWriter.writeTo(out);
     } else {
       assert fstStore != null;
       fstStore.writeTo(out);
@@ -858,7 +862,7 @@ public final class FST<T> implements Accountable {
       FSTCompiler<T> fstCompiler,
       FSTCompiler.UnCompiledNode<T> nodeIn,
       long startAddress,
-      int maxBytesPerArc) {
+      int maxBytesPerArc) throws IOException {
     // Build the header in a buffer.
     // It is a false/special arc which is in fact a node header with node flags followed by node
     // metadata.
@@ -909,7 +913,7 @@ public final class FST<T> implements Accountable {
       FSTCompiler.UnCompiledNode<T> nodeIn,
       long startAddress,
       int maxBytesPerArcWithoutLabel,
-      int labelRange) {
+      int labelRange) throws IOException {
     // Expand the arcs backwards in a buffer because we remove the labels.
     // So the obtained arcs might occupy less space. This is the reason why this
     // whole method is more complex.
@@ -985,7 +989,7 @@ public final class FST<T> implements Accountable {
       FSTCompiler<T> fstCompiler,
       FSTCompiler.UnCompiledNode<T> nodeIn,
       long dest,
-      int numPresenceBytes) {
+      int numPresenceBytes) throws IOException {
     long bytePos = dest;
     byte presenceBits = 1; // The first arc is always present.
     int presenceIndex = 0;
@@ -1539,7 +1543,7 @@ public final class FST<T> implements Accountable {
     if (this.fstStore != null) {
       return this.fstStore.getReverseBytesReader();
     } else {
-      return bytes.getReverseReader();
+      return fstWriter.getReverseReader();
     }
   }
 

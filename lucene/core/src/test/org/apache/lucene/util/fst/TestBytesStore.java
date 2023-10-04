@@ -239,6 +239,44 @@ public class TestBytesStore extends LuceneTestCase {
     }
   }
 
+  public void testSingleBlock() throws Exception {
+    final int iters = atLeast(10);
+    final int maxBytes = TEST_NIGHTLY ? 200000 : 20000;
+    for (int iter = 0; iter < iters; iter++) {
+      final int numBytes = TestUtil.nextInt(random(), 1, maxBytes);
+      final byte[] expected = new byte[numBytes];
+      final int blockBits = TestUtil.nextInt(random(), 8, 15);
+      final SingleBlockBytesStore bytes = new SingleBlockBytesStore(blockBits, 18);
+      if (VERBOSE) {
+        System.out.println(
+            "TEST: iter=" + iter + " numBytes=" + numBytes + " blockBits=" + blockBits);
+      }
+
+      int pos = 0;
+      while (pos < numBytes) {
+        // write random byte
+        byte b = (byte) random().nextInt(256);
+        if (VERBOSE) {
+          System.out.println("    writeByte b=" + b);
+        }
+
+        expected[pos++] = b;
+        bytes.writeByte(b);
+      }
+
+      // test before calling finish()
+      verify(bytes, expected, pos);
+      assertNull(bytes.bytes);
+
+      bytes.finish();
+
+      // test after calling finish()
+      verify(bytes, expected, pos);
+      assertEquals(1, bytes.blocks.size());
+      assertArrayEquals(expected, bytes.bytes);
+    }
+  }
+
   public void testCopyBytesOnByteStore() throws IOException {
     byte[] bytes = new byte[1024 * 8 + 10];
     byte[] bytesout = new byte[bytes.length];

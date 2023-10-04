@@ -27,13 +27,13 @@ import org.apache.lucene.util.RamUsageEstimator;
 // TODO: merge with PagedBytes, except PagedBytes doesn't
 // let you read while writing which FST needs
 
-class BytesStore extends DataOutput implements Accountable {
+class BytesStore extends FSTWriter implements Accountable {
 
   private static final long BASE_RAM_BYTES_USED =
       RamUsageEstimator.shallowSizeOfInstance(BytesStore.class)
           + RamUsageEstimator.shallowSizeOfInstance(ArrayList.class);
 
-  private final List<byte[]> blocks = new ArrayList<>();
+  final List<byte[]> blocks = new ArrayList<>();
 
   private final int blockSize;
   private final int blockBits;
@@ -97,7 +97,8 @@ class BytesStore extends DataOutput implements Accountable {
    * Absolute writeBytes without changing the current position. Note: this cannot "grow" the bytes,
    * so you must only call it on already written parts.
    */
-  void writeBytes(long dest, byte[] b, int offset, int len) {
+  @Override
+  public void writeBytes(long dest, byte[] b, int offset, int len) {
     // System.out.println("  BS.writeBytes dest=" + dest + " offset=" + offset + " len=" + len);
     assert dest + len <= getPosition() : "dest=" + dest + " pos=" + getPosition() + " len=" + len;
 
@@ -355,7 +356,8 @@ class BytesStore extends DataOutput implements Accountable {
     assert newLen == getPosition();
   }
 
-  public void finish() {
+  @Override
+  public void finish() throws IOException {
     if (current != null) {
       byte[] lastBuffer = new byte[nextWrite];
       System.arraycopy(current, 0, lastBuffer, 0, nextWrite);
@@ -437,8 +439,14 @@ class BytesStore extends DataOutput implements Accountable {
     };
   }
 
+  @Override
   public FST.BytesReader getReverseReader() {
     return getReverseReader(true);
+  }
+
+  @Override
+  public FST.BytesReader getReverseReaderForSuffixSharing() {
+    return getReverseReader(false);
   }
 
   FST.BytesReader getReverseReader(boolean allowSingle) {
