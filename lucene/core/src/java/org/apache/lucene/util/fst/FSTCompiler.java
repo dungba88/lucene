@@ -259,6 +259,7 @@ public class FSTCompiler<T> {
      *
      * @deprecated use {@link #fstWriter(FSTWriter)} instead
      */
+    @Deprecated
     public Builder<T> bytesPageBits(int bytesPageBits) {
       return fstWriter(new BytesStore(bytesPageBits));
     }
