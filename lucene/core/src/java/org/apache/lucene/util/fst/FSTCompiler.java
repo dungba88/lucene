@@ -94,7 +94,7 @@ public class FSTCompiler<T> {
   final float directAddressingMaxOversizingFactor;
   long directAddressingExpansionCredit;
 
-  final FSTWriter bytes;
+  final FSTWriter fstWriter;
 
   /**
    * Instantiates an FST/FSA builder with default settings and pruning options turned off. For more
@@ -132,10 +132,10 @@ public class FSTCompiler<T> {
     this.allowFixedLengthArcs = allowFixedLengthArcs;
     this.directAddressingMaxOversizingFactor = directAddressingMaxOversizingFactor;
     fst = new FST<>(inputType, outputs, fstWriter);
-    bytes = fstWriter;
-    assert bytes != null;
+    this.fstWriter = fstWriter;
+    assert this.fstWriter != null;
     if (doShareSuffix) {
-      dedupHash = new NodeHash<>(fst, bytes.getReverseReaderForSuffixSharing());
+      dedupHash = new NodeHash<>(fst, this.fstWriter.getReverseReaderForSuffixSharing());
     } else {
       dedupHash = null;
     }
@@ -335,7 +335,7 @@ public class FSTCompiler<T> {
 
   private CompiledNode compileNode(UnCompiledNode<T> nodeIn, int tailLength) throws IOException {
     final long node;
-    long bytesPosStart = bytes.getPosition();
+    long bytesPosStart = fstWriter.getPosition();
     if (dedupHash != null
         && (doShareNonSingletonNodes || nodeIn.numArcs <= 1)
         && tailLength <= shareMaxTailLength) {
@@ -350,7 +350,7 @@ public class FSTCompiler<T> {
     }
     assert node != -2;
 
-    long bytesPosEnd = bytes.getPosition();
+    long bytesPosEnd = fstWriter.getPosition();
     if (bytesPosEnd != bytesPosStart) {
       // The FST added a new node:
       assert bytesPosEnd > bytesPosStart;
@@ -496,7 +496,7 @@ public class FSTCompiler<T> {
     }
     */
 
-    bytes.beforeAdded(input);
+    fstWriter.beforeAdded(input);
 
     // De-dup NO_OUTPUT since it must be a singleton:
     if (output.equals(NO_OUTPUT)) {
@@ -517,7 +517,7 @@ public class FSTCompiler<T> {
       frontier[0].inputCount++;
       frontier[0].isFinal = true;
       fst.setEmptyOutput(output);
-      bytes.afterAdded(input);
+      fstWriter.afterAdded(input);
       return;
     }
 
@@ -602,7 +602,7 @@ public class FSTCompiler<T> {
     // save last input
     lastInput.copyInts(input);
 
-    bytes.afterAdded(input);
+    fstWriter.afterAdded(input);
 
     // System.out.println("  count[0]=" + frontier[0].inputCount);
   }

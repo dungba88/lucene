@@ -525,7 +525,7 @@ public final class FST<T> implements Accountable {
   }
 
   public long numBytes() {
-    return bytes.getPosition();
+    return fstWriter.getPosition();
   }
 
   public T getEmptyOutput() {
@@ -658,7 +658,7 @@ public final class FST<T> implements Accountable {
         return NON_FINAL_END_NODE;
       }
     }
-    final long startAddress = fstCompiler.bytes.getPosition();
+    final long startAddress = fstCompiler.fstWriter.getPosition();
     // System.out.println("  startAddr=" + startAddress);
 
     final boolean doFixedLengthArcs = shouldExpandNodeWithFixedLengthArcs(fstCompiler, nodeIn);
@@ -674,7 +674,7 @@ public final class FST<T> implements Accountable {
 
     final int lastArc = nodeIn.numArcs - 1;
 
-    long lastArcStart = fstCompiler.bytes.getPosition();
+    long lastArcStart = fstCompiler.fstWriter.getPosition();
     int maxBytesPerArc = 0;
     int maxBytesPerArcWithoutLabel = 0;
     for (int arcIdx = 0; arcIdx < nodeIn.numArcs; arcIdx++) {
@@ -714,38 +714,38 @@ public final class FST<T> implements Accountable {
         flags += BIT_ARC_HAS_OUTPUT;
       }
 
-      fstCompiler.bytes.writeByte((byte) flags);
-      long labelStart = fstCompiler.bytes.getPosition();
-      writeLabel(fstCompiler.bytes, arc.label);
-      int numLabelBytes = (int) (fstCompiler.bytes.getPosition() - labelStart);
+      fstCompiler.fstWriter.writeByte((byte) flags);
+      long labelStart = fstCompiler.fstWriter.getPosition();
+      writeLabel(fstCompiler.fstWriter, arc.label);
+      int numLabelBytes = (int) (fstCompiler.fstWriter.getPosition() - labelStart);
 
       // System.out.println("  write arc: label=" + (char) arc.label + " flags=" + flags + "
       // target=" + target.node + " pos=" + bytes.getPosition() + " output=" +
       // outputs.outputToString(arc.output));
 
       if (arc.output != NO_OUTPUT) {
-        outputs.write(arc.output, fstCompiler.bytes);
+        outputs.write(arc.output, fstCompiler.fstWriter);
         // System.out.println("    write output");
       }
 
       if (arc.nextFinalOutput != NO_OUTPUT) {
         // System.out.println("    write final output");
-        outputs.writeFinalOutput(arc.nextFinalOutput, fstCompiler.bytes);
+        outputs.writeFinalOutput(arc.nextFinalOutput, fstCompiler.fstWriter);
       }
 
       if (targetHasArcs && (flags & BIT_TARGET_NEXT) == 0) {
         assert target.node > 0;
         // System.out.println("    write target");
-        fstCompiler.bytes.writeVLong(target.node);
+        fstCompiler.fstWriter.writeVLong(target.node);
       }
 
       // just write the arcs "like normal" on first pass, but record how many bytes each one took
       // and max byte size:
       if (doFixedLengthArcs) {
-        int numArcBytes = (int) (fstCompiler.bytes.getPosition() - lastArcStart);
+        int numArcBytes = (int) (fstCompiler.fstWriter.getPosition() - lastArcStart);
         fstCompiler.numBytesPerArc[arcIdx] = numArcBytes;
         fstCompiler.numLabelBytesPerArc[arcIdx] = numLabelBytes;
-        lastArcStart = fstCompiler.bytes.getPosition();
+        lastArcStart = fstCompiler.fstWriter.getPosition();
         maxBytesPerArc = Math.max(maxBytesPerArc, numArcBytes);
         maxBytesPerArcWithoutLabel =
             Math.max(maxBytesPerArcWithoutLabel, numArcBytes - numLabelBytes);
@@ -790,8 +790,8 @@ public final class FST<T> implements Accountable {
       }
     }
 
-    final long thisNodeAddress = fstCompiler.bytes.getPosition() - 1;
-    fstCompiler.bytes.reverse(startAddress, thisNodeAddress);
+    final long thisNodeAddress = fstCompiler.fstWriter.getPosition() - 1;
+    fstCompiler.fstWriter.reverse(startAddress, thisNodeAddress);
     fstCompiler.nodeCount++;
     return thisNodeAddress;
   }
@@ -876,11 +876,11 @@ public final class FST<T> implements Accountable {
     int headerLen = fstCompiler.fixedLengthArcsBuffer.getPosition();
 
     // Expand the arcs in place, backwards.
-    long srcPos = fstCompiler.bytes.getPosition();
+    long srcPos = fstCompiler.fstWriter.getPosition();
     long destPos = startAddress + headerLen + nodeIn.numArcs * (long) maxBytesPerArc;
     assert destPos >= srcPos;
     if (destPos > srcPos) {
-      fstCompiler.bytes.skipBytes((int) (destPos - srcPos));
+      fstCompiler.fstWriter.skipBytes((int) (destPos - srcPos));
       for (int arcIdx = nodeIn.numArcs - 1; arcIdx >= 0; arcIdx--) {
         destPos -= maxBytesPerArc;
         int arcLen = fstCompiler.numBytesPerArc[arcIdx];
@@ -899,13 +899,13 @@ public final class FST<T> implements Accountable {
                   + arcLen
                   + " nodeIn.numArcs="
                   + nodeIn.numArcs;
-          fstCompiler.bytes.copyBytes(srcPos, destPos, arcLen);
+          fstCompiler.fstWriter.copyBytes(srcPos, destPos, arcLen);
         }
       }
     }
 
     // Write the header.
-    fstCompiler.bytes.writeBytes(
+    fstCompiler.fstWriter.writeBytes(
         startAddress, fstCompiler.fixedLengthArcsBuffer.getBytes(), 0, headerLen);
   }
 
@@ -923,7 +923,7 @@ public final class FST<T> implements Accountable {
     // the presence bits, and the first label. Keep the first label.
     int headerMaxLen = 11;
     int numPresenceBytes = getNumPresenceBytes(labelRange);
-    long srcPos = fstCompiler.bytes.getPosition();
+    long srcPos = fstCompiler.fstWriter.getPosition();
     int totalArcBytes =
         fstCompiler.numLabelBytesPerArc[0] + nodeIn.numArcs * maxBytesPerArcWithoutLabel;
     int bufferOffset = headerMaxLen + numPresenceBytes + totalArcBytes;
@@ -935,17 +935,17 @@ public final class FST<T> implements Accountable {
       srcPos -= srcArcLen;
       int labelLen = fstCompiler.numLabelBytesPerArc[arcIdx];
       // Copy the flags.
-      fstCompiler.bytes.copyBytes(srcPos, buffer, bufferOffset, 1);
+      fstCompiler.fstWriter.copyBytes(srcPos, buffer, bufferOffset, 1);
       // Skip the label, copy the remaining.
       int remainingArcLen = srcArcLen - 1 - labelLen;
       if (remainingArcLen != 0) {
-        fstCompiler.bytes.copyBytes(
+        fstCompiler.fstWriter.copyBytes(
             srcPos + 1 + labelLen, buffer, bufferOffset + 1, remainingArcLen);
       }
       if (arcIdx == 0) {
         // Copy the label of the first arc only.
         bufferOffset -= labelLen;
-        fstCompiler.bytes.copyBytes(srcPos + 1, buffer, bufferOffset, labelLen);
+        fstCompiler.fstWriter.copyBytes(srcPos + 1, buffer, bufferOffset, labelLen);
       }
     }
     assert bufferOffset == headerMaxLen + numPresenceBytes;
@@ -964,17 +964,17 @@ public final class FST<T> implements Accountable {
 
     // Prepare the builder byte store. Enlarge or truncate if needed.
     long nodeEnd = startAddress + headerLen + numPresenceBytes + totalArcBytes;
-    long currentPosition = fstCompiler.bytes.getPosition();
+    long currentPosition = fstCompiler.fstWriter.getPosition();
     if (nodeEnd >= currentPosition) {
-      fstCompiler.bytes.skipBytes((int) (nodeEnd - currentPosition));
+      fstCompiler.fstWriter.skipBytes((int) (nodeEnd - currentPosition));
     } else {
-      fstCompiler.bytes.truncate(nodeEnd);
+      fstCompiler.fstWriter.truncate(nodeEnd);
     }
-    assert fstCompiler.bytes.getPosition() == nodeEnd;
+    assert fstCompiler.fstWriter.getPosition() == nodeEnd;
 
     // Write the header.
     long writeOffset = startAddress;
-    fstCompiler.bytes.writeBytes(
+    fstCompiler.fstWriter.writeBytes(
         writeOffset, fstCompiler.fixedLengthArcsBuffer.getBytes(), 0, headerLen);
     writeOffset += headerLen;
 
@@ -983,7 +983,7 @@ public final class FST<T> implements Accountable {
     writeOffset += numPresenceBytes;
 
     // Write the first label and the arcs.
-    fstCompiler.bytes.writeBytes(
+    fstCompiler.fstWriter.writeBytes(
         writeOffset, fstCompiler.fixedLengthArcsBuffer.getBytes(), bufferOffset, totalArcBytes);
   }
 
@@ -1002,7 +1002,7 @@ public final class FST<T> implements Accountable {
       assert label > previousLabel;
       presenceIndex += label - previousLabel;
       while (presenceIndex >= Byte.SIZE) {
-        fstCompiler.bytes.writeByte(bytePos++, presenceBits);
+        fstCompiler.fstWriter.writeByte(bytePos++, presenceBits);
         presenceBits = 0;
         presenceIndex -= Byte.SIZE;
       }
@@ -1013,7 +1013,7 @@ public final class FST<T> implements Accountable {
     assert presenceIndex == (nodeIn.arcs[nodeIn.numArcs - 1].label - nodeIn.arcs[0].label) % 8;
     assert presenceBits != 0; // The last byte is not 0.
     assert (presenceBits & (1 << presenceIndex)) != 0; // The last arc is always present.
-    fstCompiler.bytes.writeByte(bytePos++, presenceBits);
+    fstCompiler.fstWriter.writeByte(bytePos++, presenceBits);
     assert bytePos - dest == numPresenceBytes;
   }
 
