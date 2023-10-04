@@ -28,7 +28,6 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    * Truncate the FST data to a new length
    *
    * @param newLen the new length of the FST data
-   * @throws IOException
    */
   public abstract void truncate(long newLen) throws IOException;
 
@@ -37,7 +36,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    *
    * @param srcPos the src position
    * @param destPos the dest position
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public abstract void reverse(long srcPos, long destPos) throws IOException;
 
@@ -45,7 +44,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    * Skip a number of bytes from the current position
    *
    * @param len the bytes to skip
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public abstract void skipBytes(int len) throws IOException;
 
@@ -56,7 +55,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    * @param src the position to copy from
    * @param dest the position to copy to
    * @param len the number of bytes to copy
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public abstract void copyBytes(long src, long dest, int len) throws IOException;
 
@@ -67,7 +66,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    * @param dest the buffer to copy to
    * @param offset the offset of the buffer to copy to
    * @param len the number of bytes to copy
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public abstract void copyBytes(long src, byte[] dest, int offset, int len) throws IOException;
 
@@ -78,7 +77,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    * @param b the data to write
    * @param offset the offset of the byte array to write
    * @param len the number of bytes to write
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public abstract void writeBytes(long dest, byte[] b, int offset, int len) throws IOException;
 
@@ -87,7 +86,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    *
    * @param dest the position to write to
    * @param b the byte to write
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public abstract void writeByte(long dest, byte b) throws IOException;
 
@@ -102,7 +101,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    * Called when the FST construction is finished and no more node can be added to it. Freezing,
    * optimizing the datastructure can be done here
    *
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public void finish() throws IOException {
     // do nothing by default
@@ -112,7 +111,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    * Called before adding an input
    *
    * @param input the input to be added
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public void beforeAdded(IntsRef input) throws IOException {
     // do nothing by default
@@ -122,7 +121,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    * Called after an input is added to the FST Flushing, cleaning up, etc. can be done here
    *
    * @param input the added input
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public void afterAdded(IntsRef input) throws IOException {
     // do nothing by default
@@ -146,7 +145,7 @@ public abstract class FSTWriter extends DataOutput implements Accountable {
    * Write this FST data to a DataOutput. Must be called after {@link #finish()}
    *
    * @param out the DataOutput
-   * @throws IOException
+   * @throws IOException if exception occurred during the operation
    */
   public abstract void writeTo(DataOutput out) throws IOException;
 }
