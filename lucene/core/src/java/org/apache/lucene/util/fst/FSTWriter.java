@@ -23,8 +23,20 @@ import org.apache.lucene.util.Accountable;
 /** Abstract class which provides low-level functionality to write to a FST */
 public interface FSTWriter extends Accountable {
 
+  /**
+   * Write a single byte to the end of this FSTWriter
+   *
+   * @param b the byte to write
+   */
   void writeByte(byte b) throws IOException;
 
+  /**
+   * Write a byte array to the end of this FSTWriter
+   *
+   * @param b the byte array to write
+   * @param offset the offset of the array
+   * @param length the number of bytes to write
+   */
   void writeBytes(byte[] b, int offset, int length) throws IOException;
 
   /**

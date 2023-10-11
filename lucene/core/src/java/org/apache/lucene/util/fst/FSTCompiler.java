@@ -409,8 +409,7 @@ public class FSTCompiler<T> {
 
   // serializes new node by appending its bytes to the end
   // of the current byte[]
-  long addNode(FSTCompiler.UnCompiledNode<T> nodeIn)
-      throws IOException {
+  long addNode(FSTCompiler.UnCompiledNode<T> nodeIn) throws IOException {
     T NO_OUTPUT = fst.outputs.getNoOutput();
 
     // System.out.println("FST.addNode pos=" + bytes.getPosition() + " numArcs=" + nodeIn.numArcs);
@@ -543,8 +542,7 @@ public class FSTCompiler<T> {
       assert labelRange > 0;
       if (shouldExpandNodeWithDirectAddressing(
           nodeIn, maxBytesPerArc, maxBytesPerArcWithoutLabel, labelRange)) {
-        writeNodeForDirectAddressing(
-            nodeIn, 0, maxBytesPerArcWithoutLabel, labelRange);
+        writeNodeForDirectAddressing(nodeIn, 0, maxBytesPerArcWithoutLabel, labelRange);
         directAddressingNodeCount++;
       } else {
         writeNodeForBinarySearch(nodeIn, 0, maxBytesPerArc);
@@ -621,9 +619,7 @@ public class FSTCompiler<T> {
   }
 
   private void writeNodeForBinarySearch(
-      FSTCompiler.UnCompiledNode<T> nodeIn,
-      long startAddress,
-      int maxBytesPerArc)
+      FSTCompiler.UnCompiledNode<T> nodeIn, long startAddress, int maxBytesPerArc)
       throws IOException {
     // Build the header in a buffer.
     // It is a false/special arc which is in fact a node header with node flags followed by node
@@ -648,25 +644,24 @@ public class FSTCompiler<T> {
         if (srcPos != destPos) {
           assert destPos > srcPos
               : "destPos="
-              + destPos
-              + " srcPos="
-              + srcPos
-              + " arcIdx="
-              + arcIdx
-              + " maxBytesPerArc="
-              + maxBytesPerArc
-              + " arcLen="
-              + arcLen
-              + " nodeIn.numArcs="
-              + nodeIn.numArcs;
+                  + destPos
+                  + " srcPos="
+                  + srcPos
+                  + " arcIdx="
+                  + arcIdx
+                  + " maxBytesPerArc="
+                  + maxBytesPerArc
+                  + " arcLen="
+                  + arcLen
+                  + " nodeIn.numArcs="
+                  + nodeIn.numArcs;
           bytes.copyBytes(srcPos, destPos, arcLen);
         }
       }
     }
 
     // Write the header.
-    bytes.writeBytes(
-        startAddress, fixedLengthArcsBuffer.getBytes(), 0, headerLen);
+    bytes.writeBytes(startAddress, fixedLengthArcsBuffer.getBytes(), 0, headerLen);
   }
 
   private void writeNodeForDirectAddressing(
@@ -683,8 +678,7 @@ public class FSTCompiler<T> {
     int headerMaxLen = 11;
     int numPresenceBytes = getNumPresenceBytes(labelRange);
     long srcPos = bytes.getPosition();
-    int totalArcBytes =
-        numLabelBytesPerArc[0] + nodeIn.numArcs * maxBytesPerArcWithoutLabel;
+    int totalArcBytes = numLabelBytesPerArc[0] + nodeIn.numArcs * maxBytesPerArcWithoutLabel;
     int bufferOffset = headerMaxLen + numPresenceBytes + totalArcBytes;
     byte[] buffer = fixedLengthArcsBuffer.ensureCapacity(bufferOffset).getBytes();
     // Copy the arcs to the buffer, dropping all labels except first one.
@@ -698,8 +692,7 @@ public class FSTCompiler<T> {
       // Skip the label, copy the remaining.
       int remainingArcLen = srcArcLen - 1 - labelLen;
       if (remainingArcLen != 0) {
-        bytes.copyBytes(
-            srcPos + 1 + labelLen, buffer, bufferOffset + 1, remainingArcLen);
+        bytes.copyBytes(srcPos + 1 + labelLen, buffer, bufferOffset + 1, remainingArcLen);
       }
       if (arcIdx == 0) {
         // Copy the label of the first arc only.
@@ -732,8 +725,7 @@ public class FSTCompiler<T> {
 
     // Write the header.
     long writeOffset = startAddress;
-    bytes.writeBytes(
-        writeOffset, fixedLengthArcsBuffer.getBytes(), 0, headerLen);
+    bytes.writeBytes(writeOffset, fixedLengthArcsBuffer.getBytes(), 0, headerLen);
     writeOffset += headerLen;
 
     // Write the presence bits
@@ -741,8 +733,7 @@ public class FSTCompiler<T> {
     writeOffset += numPresenceBytes;
 
     // Write the first label and the arcs.
-    bytes.writeBytes(
-        writeOffset, fixedLengthArcsBuffer.getBytes(), bufferOffset, totalArcBytes);
+    bytes.writeBytes(writeOffset, fixedLengthArcsBuffer.getBytes(), bufferOffset, totalArcBytes);
   }
 
   private long getPosition() {
@@ -763,10 +754,7 @@ public class FSTCompiler<T> {
   }
 
   private void writePresenceBits(
-      FSTCompiler.UnCompiledNode<T> nodeIn,
-      long dest,
-      int numPresenceBytes)
-      throws IOException {
+      FSTCompiler.UnCompiledNode<T> nodeIn, long dest, int numPresenceBytes) throws IOException {
     long bytePos = dest;
     byte presenceBits = 1; // The first arc is always present.
     int presenceIndex = 0;

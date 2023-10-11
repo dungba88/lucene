@@ -328,6 +328,7 @@ class BytesStore extends DataOutput implements FSTWriter {
     }
   }
 
+  @Override
   public long getPosition() {
     return ((long) blocks.size() - 1) * blockSize + nextWrite;
   }
@@ -354,6 +355,7 @@ class BytesStore extends DataOutput implements FSTWriter {
     assert newLen == getPosition();
   }
 
+  @Override
   public void finish() {
     if (current != null) {
       byte[] lastBuffer = new byte[nextWrite];

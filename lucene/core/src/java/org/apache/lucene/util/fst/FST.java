@@ -527,6 +527,7 @@ public final class FST<T> implements Accountable {
 
   /**
    * Save the metadata to a DataOutput
+   *
    * @param metaOut the DataOutput to save
    */
   public void saveMetadata(DataOutput metaOut) throws IOException {
@@ -725,7 +726,7 @@ public final class FST<T> implements Accountable {
     }
   }
 
-  private static long readUnpackedNodeTarget(BytesReader in) throws IOException {
+  private long readUnpackedNodeTarget(BytesReader in) throws IOException {
     return in.readVLong();
   }
 
