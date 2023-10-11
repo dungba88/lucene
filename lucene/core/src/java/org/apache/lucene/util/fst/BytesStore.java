@@ -21,13 +21,12 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 
 // TODO: merge with PagedBytes, except PagedBytes doesn't
 // let you read while writing which FST needs
 
-class BytesStore extends DataOutput implements Accountable {
+class BytesStore extends DataOutput implements FSTWriter {
 
   private static final long BASE_RAM_BYTES_USED =
       RamUsageEstimator.shallowSizeOfInstance(BytesStore.class)
@@ -364,7 +363,15 @@ class BytesStore extends DataOutput implements Accountable {
     }
   }
 
+  /** Writes all of our bytes to the target {@link FSTWriter}. */
+  public void writeTo(FSTWriter out) throws IOException {
+    for (byte[] block : blocks) {
+      out.writeBytes(block, 0, block.length);
+    }
+  }
+
   /** Writes all of our bytes to the target {@link DataOutput}. */
+  @Override
   public void writeTo(DataOutput out) throws IOException {
     for (byte[] block : blocks) {
       out.writeBytes(block, 0, block.length);
@@ -437,8 +444,14 @@ class BytesStore extends DataOutput implements Accountable {
     };
   }
 
+  @Override
   public FST.BytesReader getReverseReader() {
     return getReverseReader(true);
+  }
+
+  @Override
+  public FST.BytesReader getReverseReaderForSuffixSharing() {
+    return getReverseReader(false);
   }
 
   FST.BytesReader getReverseReader(boolean allowSingle) {
