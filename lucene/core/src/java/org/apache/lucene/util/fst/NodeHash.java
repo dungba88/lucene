@@ -38,7 +38,7 @@ final class NodeHash<T> {
   }
 
   private boolean nodesEqual(FSTCompiler.UnCompiledNode<T> node, long address) throws IOException {
-    fstCompiler.fst.readFirstRealTargetArc(address, scratchArc, in);
+    fstCompiler.fstTraversal.readFirstRealTargetArc(address, scratchArc, in);
 
     // Fail fast for a node with fixed length arcs.
     if (scratchArc.bytesPerArc() != 0) {
@@ -72,7 +72,7 @@ final class NodeHash<T> {
           return false;
         }
       }
-      fstCompiler.fst.readNextRealArc(scratchArc, in);
+      fstCompiler.fstTraversal.readNextRealArc(scratchArc, in);
     }
 
     return false;
@@ -108,7 +108,7 @@ final class NodeHash<T> {
     final int PRIME = 31;
     // System.out.println("hash frozen node=" + node);
     long h = 0;
-    fstCompiler.fst.readFirstRealTargetArc(node, scratchArc, in);
+    fstCompiler.fstTraversal.readFirstRealTargetArc(node, scratchArc, in);
     while (true) {
       // System.out.println("  label=" + scratchArc.label + " target=" + scratchArc.target + " h=" +
       // h + " output=" + fst.outputs.outputToString(scratchArc.output) + " next?=" +
@@ -123,7 +123,7 @@ final class NodeHash<T> {
       if (scratchArc.isLast()) {
         break;
       }
-      fstCompiler.fst.readNextRealArc(scratchArc, in);
+      fstCompiler.fstTraversal.readNextRealArc(scratchArc, in);
     }
     // System.out.println("  ret " + (h&Integer.MAX_VALUE));
     return h & Long.MAX_VALUE;

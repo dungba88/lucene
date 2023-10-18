@@ -1199,7 +1199,6 @@ public class TestFSTs extends LuceneTestCase {
     final PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton();
     final Long nothing = outputs.getNoOutput();
     final FSTCompiler<Long> fstCompiler = new FSTCompiler<>(FST.INPUT_TYPE.BYTE1, outputs);
-    final FST<Long> fst = fstCompiler.fst;
 
     final FSTCompiler.UnCompiledNode<Long> rootNode =
         new FSTCompiler.UnCompiledNode<>(fstCompiler, 0);
@@ -1230,7 +1229,14 @@ public class TestFSTs extends LuceneTestCase {
       rootNode.arcs[1].target = frozen;
     }
 
-    fst.finish(fstCompiler.addNode(rootNode));
+    fstCompiler.finish(fstCompiler.addNode(rootNode));
+    FST<Long> fst =
+        new FST<>(
+            fstCompiler.inputType,
+            outputs,
+            fstCompiler.bytes,
+            fstCompiler.startNode,
+            fstCompiler.emptyOutput);
 
     StringWriter w = new StringWriter();
     // Writer w = new OutputStreamWriter(new FileOutputStream("/x/tmp3/out.dot"));

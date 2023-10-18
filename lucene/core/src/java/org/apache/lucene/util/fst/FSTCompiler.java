@@ -26,7 +26,8 @@ import static org.apache.lucene.util.fst.FST.BIT_STOP_NODE;
 import static org.apache.lucene.util.fst.FST.BIT_TARGET_NEXT;
 import static org.apache.lucene.util.fst.FST.FINAL_END_NODE;
 import static org.apache.lucene.util.fst.FST.NON_FINAL_END_NODE;
-import static org.apache.lucene.util.fst.FST.getNumPresenceBytes;
+import static org.apache.lucene.util.fst.FST.VERSION_CURRENT;
+import static org.apache.lucene.util.fst.FSTTraversal.getNumPresenceBytes;
 
 import java.io.IOException;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -84,7 +85,7 @@ public class FSTCompiler<T> {
   private static final float DIRECT_ADDRESSING_MAX_OVERSIZE_WITH_CREDIT_FACTOR = 1.66f;
 
   private final NodeHash<T> dedupHash;
-  final FST<T> fst;
+  final FSTTraversal<T> fstTraversal;
   private final T NO_OUTPUT;
 
   // private static final boolean DEBUG = true;
@@ -102,6 +103,8 @@ public class FSTCompiler<T> {
   private final int shareMaxTailLength;
 
   private final IntsRefBuilder lastInput = new IntsRefBuilder();
+  private final Outputs<T> outputs;
+  final INPUT_TYPE inputType;
 
   // NOTE: cutting this over to ArrayList instead loses ~6%
   // in build performance on 9.8M Wikipedia terms; so we
@@ -130,6 +133,8 @@ public class FSTCompiler<T> {
   long directAddressingExpansionCredit;
 
   final BytesStore bytes;
+  T emptyOutput;
+  long startNode = -1;
 
   /**
    * Instantiates an FST/FSA builder with default settings and pruning options turned off. For more
@@ -156,8 +161,13 @@ public class FSTCompiler<T> {
     this.shareMaxTailLength = shareMaxTailLength;
     this.allowFixedLengthArcs = allowFixedLengthArcs;
     this.directAddressingMaxOversizingFactor = directAddressingMaxOversizingFactor;
-    fst = new FST<>(inputType, outputs, bytesPageBits);
-    bytes = fst.bytes;
+    this.outputs = outputs;
+    this.inputType = inputType;
+    bytes = new BytesStore(bytesPageBits);
+    // pad: ensure no node gets address 0 which is reserved to mean
+    // the stop state w/ no arcs
+    bytes.writeByte((byte) 0);
+    fstTraversal = new FSTTraversal<>(VERSION_CURRENT, inputType, outputs);
     assert bytes != null;
     if (doShareSuffix) {
       dedupHash = new NodeHash<>(this, bytes.getReverseReader(false));
@@ -377,8 +387,6 @@ public class FSTCompiler<T> {
   // serializes new node by appending its bytes to the end
   // of the current byte[]
   long addNode(FSTCompiler.UnCompiledNode<T> nodeIn) throws IOException {
-    T NO_OUTPUT = fst.outputs.getNoOutput();
-
     // System.out.println("FST.addNode pos=" + bytes.getPosition() + " numArcs=" + nodeIn.numArcs);
     if (nodeIn.numArcs == 0) {
       if (nodeIn.isFinal) {
@@ -453,13 +461,13 @@ public class FSTCompiler<T> {
       // outputs.outputToString(arc.output));
 
       if (arc.output != NO_OUTPUT) {
-        fst.outputs.write(arc.output, bytes);
+        outputs.write(arc.output, bytes);
         // System.out.println("    write output");
       }
 
       if (arc.nextFinalOutput != NO_OUTPUT) {
         // System.out.println("    write final output");
-        fst.outputs.writeFinalOutput(arc.nextFinalOutput, bytes);
+        outputs.writeFinalOutput(arc.nextFinalOutput, bytes);
       }
 
       if (targetHasArcs && (flags & BIT_TARGET_NEXT) == 0) {
@@ -526,10 +534,10 @@ public class FSTCompiler<T> {
 
   private void writeLabel(DataOutput out, int v) throws IOException {
     assert v >= 0 : "v=" + v;
-    if (fst.inputType == INPUT_TYPE.BYTE1) {
+    if (inputType == INPUT_TYPE.BYTE1) {
       assert v <= 255 : "v=" + v;
       out.writeByte((byte) v);
-    } else if (fst.inputType == INPUT_TYPE.BYTE2) {
+    } else if (inputType == INPUT_TYPE.BYTE2) {
       assert v <= 65535 : "v=" + v;
       out.writeShort((short) v);
     } else {
@@ -888,7 +896,7 @@ public class FSTCompiler<T> {
       // the node
       frontier[0].inputCount++;
       frontier[0].isFinal = true;
-      fst.setEmptyOutput(output);
+      setEmptyOutput(output);
       return;
     }
 
@@ -945,9 +953,9 @@ public class FSTCompiler<T> {
       final T wordSuffix;
 
       if (lastOutput != NO_OUTPUT) {
-        commonOutputPrefix = fst.outputs.common(output, lastOutput);
+        commonOutputPrefix = outputs.common(output, lastOutput);
         assert validOutput(commonOutputPrefix);
-        wordSuffix = fst.outputs.subtract(lastOutput, commonOutputPrefix);
+        wordSuffix = outputs.subtract(lastOutput, commonOutputPrefix);
         assert validOutput(wordSuffix);
         parentNode.setLastOutput(input.ints[input.offset + idx - 1], commonOutputPrefix);
         node.prependOutput(wordSuffix);
@@ -955,14 +963,14 @@ public class FSTCompiler<T> {
         commonOutputPrefix = wordSuffix = NO_OUTPUT;
       }
 
-      output = fst.outputs.subtract(output, commonOutputPrefix);
+      output = outputs.subtract(output, commonOutputPrefix);
       assert validOutput(output);
     }
 
     if (lastInput.length() == input.length && prefixLenPlus1 == 1 + input.length) {
       // same input more than 1 time in a row, mapping to
       // multiple outputs
-      lastNode.output = fst.outputs.merge(lastNode.output, output);
+      lastNode.output = outputs.merge(lastNode.output, output);
     } else {
       // this new arc is private to this new input; set its
       // arc output to the leftover output:
@@ -974,6 +982,14 @@ public class FSTCompiler<T> {
     lastInput.copyInts(input);
 
     // System.out.println("  count[0]=" + frontier[0].inputCount);
+  }
+
+  void setEmptyOutput(T v) {
+    if (emptyOutput != null) {
+      emptyOutput = outputs.merge(emptyOutput, v);
+    } else {
+      emptyOutput = v;
+    }
   }
 
   private boolean validOutput(T output) {
@@ -990,7 +1006,7 @@ public class FSTCompiler<T> {
     if (root.inputCount < minSuffixCount1
         || root.inputCount < minSuffixCount2
         || root.numArcs == 0) {
-      if (fst.emptyOutput == null) {
+      if (emptyOutput == null) {
         return null;
       } else if (minSuffixCount1 > 0 || minSuffixCount2 > 0) {
         // empty string got pruned
@@ -1003,9 +1019,21 @@ public class FSTCompiler<T> {
     }
     // if (DEBUG) System.out.println("  builder.finish root.isFinal=" + root.isFinal + "
     // root.output=" + root.output);
-    fst.finish(compileNode(root, lastInput.length()).node);
+    finish(compileNode(root, lastInput.length()).node);
 
-    return fst;
+    return new FST<>(inputType, outputs, bytes, startNode, emptyOutput);
+  }
+
+  void finish(long newStartNode) {
+    assert newStartNode <= bytes.getPosition();
+    if (startNode != -1) {
+      throw new IllegalStateException("already finished");
+    }
+    if (newStartNode == FINAL_END_NODE && emptyOutput != null) {
+      newStartNode = 0;
+    }
+    startNode = newStartNode;
+    bytes.finish();
   }
 
   private void compileAllTargets(UnCompiledNode<T> node, int tailLength) throws IOException {
@@ -1042,7 +1070,7 @@ public class FSTCompiler<T> {
   }
 
   public long fstRamBytesUsed() {
-    return fst.ramBytesUsed();
+    return bytes.ramBytesUsed();
   }
 
   static final class CompiledNode implements Node {
@@ -1157,12 +1185,12 @@ public class FSTCompiler<T> {
       assert owner.validOutput(outputPrefix);
 
       for (int arcIdx = 0; arcIdx < numArcs; arcIdx++) {
-        arcs[arcIdx].output = owner.fst.outputs.add(outputPrefix, arcs[arcIdx].output);
+        arcs[arcIdx].output = owner.outputs.add(outputPrefix, arcs[arcIdx].output);
         assert owner.validOutput(arcs[arcIdx].output);
       }
 
       if (isFinal) {
-        output = owner.fst.outputs.add(outputPrefix, output);
+        output = owner.outputs.add(outputPrefix, output);
         assert owner.validOutput(output);
       }
     }
