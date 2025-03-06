@@ -16,6 +16,13 @@
  */
 package org.apache.lucene.search;
 
+import org.apache.lucene.codecs.lucene90.IndexedDISI;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.knn.KnnCollectorManager;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,12 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import org.apache.lucene.codecs.lucene90.IndexedDISI;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.KnnVectorValues;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.knn.KnnCollectorManager;
-import org.apache.lucene.search.knn.KnnSearchStrategy;
 
 /**
  * Like {@link KnnFloatVectorQuery} but makes an optimistic assumption about the distribution of
@@ -43,28 +44,21 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 // yes, I think we should merge this stuff w/AbstractKnnVectorQuery, enable it with a
 // KnnSearchStrategy,
 // and extend KnnFloatVectorQuery/KnnByteVectorQuery in a simple way
-public class OptimisticKnnVectorQuery extends KnnFloatVectorQuery {
+public class SimplifiedOptimisticKnnVectorQuery extends KnnFloatVectorQuery {
 
   // Magic number that controls the per-leaf pro-rata calculation. Higher numbers mean a larger
   // queue is maintained, proportionally, for each leaf.
   private static final int LAMBDA = 5;
   private final int lambda;
 
-  public OptimisticKnnVectorQuery(String field, float[] target, int k, int lambda, Query filter) {
+  public SimplifiedOptimisticKnnVectorQuery(String field, float[] target, int k, int lambda, Query filter) {
     super(field, target, k, filter);
     this.lambda = lambda;
   }
 
-  public OptimisticKnnVectorQuery(String field, float[] target, int k, int lambda) {
-    this(field, target, k, lambda, null);
-  }
-
-  public OptimisticKnnVectorQuery(String field, float[] target, int k) {
-    this(field, target, k, LAMBDA);
-  }
-
-  public OptimisticKnnVectorQuery(String field, float[] target, int k, Query filter ) {
-    this(field, target, k, LAMBDA, filter);
+  public SimplifiedOptimisticKnnVectorQuery(String field, float[] target, int k, int lambda) {
+    super(field, target, k, null);
+    this.lambda = lambda;
   }
 
   @Override
@@ -95,7 +89,6 @@ public class OptimisticKnnVectorQuery extends KnnFloatVectorQuery {
     }
     TopDocs topK = null;
     Map<Integer, TopDocs> perLeafResults = new HashMap<>(leafReaderContexts.size());
-    int kInLoop = k;
     int reentryCount = 0;
     while (tasks.isEmpty() == false) {
       List<TopDocs> taskResults = taskExecutor.invokeAll(tasks);
@@ -108,12 +101,16 @@ public class OptimisticKnnVectorQuery extends KnnFloatVectorQuery {
       if (topK.scoreDocs.length == 0 || perLeafResults.size() <= 1) {
         break;
       }
+
+      if (reentryCount > 0) {
+        break;
+      }
+
       float minTopKScore = topK.scoreDocs[topK.scoreDocs.length - 1].score;
-      kInLoop *= 2;
       TimeLimitingKnnCollectorManager knnCollectorManagerInner =
           new TimeLimitingKnnCollectorManager(
               new ReentrantKnnCollectorManager(
-                  getKnnCollectorManager(kInLoop, indexSearcher), perLeafResults),
+                  super.getKnnCollectorManager(k, indexSearcher), perLeafResults),
               indexSearcher.getTimeout());
       // System.out.println("k=" + k + " kloop=" + kInLoop);
       Iterator<LeafReaderContext> ctxIter = leafReaderContexts.iterator();
@@ -126,9 +123,7 @@ public class OptimisticKnnVectorQuery extends KnnFloatVectorQuery {
                            + " #global-min=" + minTopKScore + " visited=" + perLeaf.totalHits.value());
         */
         if (perLeaf.scoreDocs.length > 0
-            && perLeaf.scoreDocs[perLeaf.scoreDocs.length - 1].score >= minTopKScore
-            && perLeafTopKCalculation(kInLoop / 2, ctx.reader().maxDoc() / (float) reader.maxDoc())
-                <= k + 1) {
+            && perLeaf.scoreDocs[perLeaf.scoreDocs.length - 1].score >= minTopKScore) {
           // All this leaf's hits are at or above the global topK min score; explore it further, and
           // we have not yet tried perLeafK >= k.
           // System.out.println("re-try search of leaf " + ctx.ord + "; K'=" + kInLoop);
