@@ -89,20 +89,24 @@ abstract class AbstractKnnVectorQuery extends Query {
     TimeLimitingKnnCollectorManager knnCollectorManager =
         new TimeLimitingKnnCollectorManager(
             getKnnCollectorManager(k, indexSearcher), indexSearcher.getTimeout());
-    TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
-    List<LeafReaderContext> leafReaderContexts = reader.leaves();
+    List<LeafReaderContext> leafReaderContexts = indexSearcher.getIndexReader().leaves();
     List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
     for (LeafReaderContext context : leafReaderContexts) {
       tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager));
     }
-    TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
+    List<TopDocs> perLeafResults = indexSearcher.getTaskExecutor().invokeAll(tasks);
+    TopDocs topK = postProcessResults(indexSearcher, filterWeight, perLeafResults);
 
-    // Merge sort the results
-    TopDocs topK = mergeLeafResults(perLeafResults);
     if (topK.scoreDocs.length == 0) {
       return new MatchNoDocsQuery();
     }
     return createRewrittenQuery(reader, topK);
+  }
+
+  protected TopDocs postProcessResults(IndexSearcher indexSearcher,
+                                       Weight filterWeight,
+                                       List<TopDocs> perLeafResults) throws IOException {
+    return mergeLeafResults(perLeafResults.toArray(TopDocs[]::new));
   }
 
   protected TopDocs searchLeaf(
