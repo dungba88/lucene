@@ -54,7 +54,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 
 /** Reader for binary quantized vectors in the Lucene 10.2 format. */
-class Lucene102BinaryQuantizedVectorsReader extends FlatVectorsReader {
+public class Lucene102BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
   private static final long SHALLOW_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(Lucene102BinaryQuantizedVectorsReader.class);
@@ -386,9 +386,9 @@ class Lucene102BinaryQuantizedVectorsReader extends FlatVectorsReader {
   }
 
   /** Binarized vector values holding row and quantized vector values */
-  protected static final class BinarizedVectorValues extends FloatVectorValues {
-    private final FloatVectorValues rawVectorValues;
-    private final BinarizedByteVectorValues quantizedVectorValues;
+  public static final class BinarizedVectorValues extends FloatVectorValues {
+    public final FloatVectorValues rawVectorValues;
+    public final BinarizedByteVectorValues quantizedVectorValues;
 
     BinarizedVectorValues(
         FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {

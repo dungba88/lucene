@@ -411,9 +411,9 @@ public final class Lucene99ScalarQuantizedVectorsReader extends FlatVectorsReade
     }
   }
 
-  private static final class QuantizedVectorValues extends FloatVectorValues {
-    private final FloatVectorValues rawVectorValues;
-    private final QuantizedByteVectorValues quantizedVectorValues;
+  public static final class QuantizedVectorValues extends FloatVectorValues {
+    public final FloatVectorValues rawVectorValues;
+    public final QuantizedByteVectorValues quantizedVectorValues;
 
     QuantizedVectorValues(
         FloatVectorValues rawVectorValues, QuantizedByteVectorValues quantizedVectorValues) {
